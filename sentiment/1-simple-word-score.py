@@ -1,16 +1,15 @@
-# Simple solution:
-# train: Calculate the average sentiment for every word, considering only sentences
-# fit: calculate the average sentiment of the words in that phrase.
-# assument sentiment = 2 when you encounter words not in the train data
+# = IDEA =
+# Simple solution: give a 'score' to each word based on the average
+# sentiment of the phrases it's in.
+# Calculate the sentiment on new phrases by calculating the average score
+# of its words, weighted by the "non-neutralness" of the word.
+#
+# = SCORE ON KAGGLE PUBLIC LEADERBOARD =
+# 0.53859
 
-import numpy
-import sklearn
 import csv
 import math
 
-dataset = None
-output = None
-sentences = []
 phrases = []
 words = {}
 
@@ -21,12 +20,8 @@ def load_data(path, **kwargs):
     return dataset
 
 def train(train_dataset):
-    prev_sid = 0
     for pid, sid, text, score in train_dataset:
         phrases.append((int(pid), int(sid), text, int(score)))
-        if int(sid) != prev_sid:
-            prev_sid = int(sid)
-            sentences.append((int(pid), int(sid), text, int(score)))
 
     for a, b, phrase, score in phrases:
         score -= 2
@@ -48,9 +43,8 @@ def fit(test):
         for word in phrase.split():
             if len(word) > 2:
                 if word in words:
-                    total += words[word]['score'] * math.fabs(words[word]['score'])#words[word]['count']
-                    total_weight += math.fabs(words[word]['score'])#words[word]['count']
-
+                    total += words[word]['score'] * math.fabs(words[word]['score'])
+                    total_weight += math.fabs(words[word]['score'])
         if total_weight:
             results.append(total/float(total_weight))
         else:
@@ -64,13 +58,14 @@ def output(results, header_row):
         writer.writerows(results)
 
 if __name__ == '__main__':
-    input_options = {'comments': None, 'skip_header': 1, 'delimiter': '\t',
-                     'dtype': numpy.uint32}
-    train_dataset = load_data('data/train.tsv', **input_options)
+    train_dataset = load_data('data/train.tsv')
     train(train_dataset)
-    test_dataset = load_data('data/test.tsv', **input_options)
+    test_dataset = load_data('data/test.tsv')
     results = fit(test_dataset)
     output(
-        list(zip(map(lambda x: x[0], test_dataset), map(lambda x: int(round(x))+2, results))),
+        list(zip(
+            map(lambda x: x[0], test_dataset),
+            map(lambda x: int(round(x))+2, results)
+        )),
         ('PhraseId', 'Sentiment')
     )
