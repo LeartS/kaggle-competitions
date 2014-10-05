@@ -1,3 +1,4 @@
+
 import math
 import numpy
 from sklearn import cross_validation
@@ -13,6 +14,11 @@ class CustomEstimator(BaseEstimator):
         self.words.clear()
 
     def fit(self, X, y):
+        """
+        Assign a score to every word, equal to the average of the sentiment
+        of all the phrases it's in, weighted by a number proportional to the
+        number of words in the phrase.
+        """
         if X.shape[0] != y.shape[0]:
             raise ValueError, 'X and y should have the same length'
         self.reset()
@@ -30,6 +36,10 @@ class CustomEstimator(BaseEstimator):
         return self
 
     def predict(self, T):
+        """
+        The score of a phrase if the average score of its words,
+        weighted by a number propportional to the "non-neutralness" of the word.
+        """
         results = []
         for phrase in T:
             total = 0.0
@@ -38,8 +48,8 @@ class CustomEstimator(BaseEstimator):
                 if len(word) > 2:
                     if word in self.words:
                         word_score = self.words[word]['score']
-                        total += word_score * math.fabs(word_score)
-                        total_weight += 1.0 * math.fabs(word_score)
+                        total += word_score * math.fabs(word_score)**2
+                        total_weight += 1.0 * math.fabs(word_score)**2
             if total_weight:
                 results.append(int(round(total/float(total_weight))) + 2)
             else:
@@ -69,7 +79,6 @@ if __name__ == '__main__':
         train_train_y = train_dataset[train_indices][:,-1].astype(numpy.int8)
         train_test_X = train_dataset[test_indices][:,1]
         train_test_y = train_dataset[test_indices][:,-1].astype(numpy.int8)
-        
         s = estimator.fit(train_train_X, train_train_y).score(train_test_X,
                                                               train_test_y)
         a += s
