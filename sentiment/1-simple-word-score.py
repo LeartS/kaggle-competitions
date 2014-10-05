@@ -35,7 +35,7 @@ def train(train_dataset):
     for word in words.keys():
         words[word]['score'] /= float(words[word]['count'])
 
-def fit(test):
+def predict(test):
     results = []
     for pid, sid, phrase in test:
         total = 0.0
@@ -59,9 +59,10 @@ def output(results, header_row):
 
 if __name__ == '__main__':
     train_dataset = load_data('data/train.tsv')
+
     train(train_dataset)
     test_dataset = load_data('data/test.tsv')
-    results = fit(test_dataset)
+    results = predict(test_dataset)
     output(
         list(zip(
             map(lambda x: x[0], test_dataset),
