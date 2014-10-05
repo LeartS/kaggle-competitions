@@ -1,115 +1,85 @@
-# = IDEA =
-# Simple solution: give a 'score' to each word based on the average
-# sentiment of the phrases it's in.
-# Calculate the sentiment on new phrases by calculating the average score
-# of its words, weighted by the "non-neutralness" of the word.
-#
-# = SCORE ON KAGGLE PUBLIC LEADERBOARD =
-# 0.53859
-
-import csv
 import math
-import re
+import numpy
 from sklearn import cross_validation
+from sklearn.base import BaseEstimator
+from sklearn.metrics import accuracy_score
 
-modifiers = """
-no not somewhat too little less more quite very so never ever seldom
-always often still
-"""
-modifiers = modifiers.split()
-modifiers_reg = re.compile('^[a-zA-Z]{3,}ly$')
-
-phrases = []
-word_data = {}
-mod_data = {}
-
-class Estimator(object):
+class CustomEstimator(BaseEstimator):
 
     def __init__(self):
-        self.word_data = {}
-        self.phrases = []
+        self.words = {}
 
     def reset(self):
-        self.word_data.clear()
-        self.phrases = []
+        self.words.clear()
 
-    def fit(X, Y):
+    def fit(self, X, y):
+        if X.shape[0] != y.shape[0]:
+            raise ValueError, 'X and y should have the same length'
         self.reset()
-        for pid, sid, text, score in zip(X,Y):
+        for text, score in zip(X,y):
             text = text.replace(',', '').replace('.', '')
-            phrases.append((int(pid), int(sid), text, int(score)))
-
-        for a, b, phrase, score in phrases:
-            score -= 2.0
-            words = phrase.split()
+            score = int(score) - 2.0
+            words = text.split()
             for word in words:
-                if not word in word_data:
-                    word_data[word] = {'score': 0.0, 'count': 0.0}
-                word_data[word]['score'] += score/len(words)**3
-                word_data[word]['count'] += 1.0/len(words)**3
-
-        for word in word_data.keys():
-            word_data[word]['score'] /= float(word_data[word]['count'])
-
+                if not word in self.words:
+                    self.words[word] = {'score': 0.0, 'count': 0.0}
+                self.words[word]['score'] += score / len(words)**2
+                self.words[word]['count'] += 1.0 / len(words)**2
+        for word in self.words.keys():
+            self.words[word]['score'] /= float(self.words[word]['count'])
         return self
 
-    def predict(T):
+    def predict(self, T):
         results = []
-        for pid, sid, phrase in test:
+        for phrase in T:
             total = 0.0
             total_weight = 0.0
             for word in phrase.split():
                 if len(word) > 2:
-                    if word in word_data:
-                        total += word_data[word]['score'] * math.fabs(word_data[word]['score'])
-                        total_weight += math.fabs(word_data[word]['score'])
+                    if word in self.words:
+                        word_score = self.words[word]['score']
+                        total += word_score * math.fabs(word_score)
+                        total_weight += 1.0 * math.fabs(word_score)
             if total_weight:
-                results.append(str(int(round(total/float(total_weight))) + 2))
+                results.append(int(round(total/float(total_weight))) + 2)
             else:
-                results.append(0 + 2)
-        return results 
+                results.append(2.0)
+        return numpy.array(results, dtype=numpy.int8)
+
+    def score(self, X, y):
+        return accuracy_score(y, self.predict(X))
 
 def load_data(path, **kwargs):
-    with open(path, 'r') as train_file:
-        reader = csv.reader(train_file, delimiter='\t')
-        dataset = [l for l in reader][1:]
-    return dataset
+    return numpy.loadtxt(path, **kwargs)
 
-def fit(train_dataset):
-
-def score(results, reference):
-    return len([r for r, f in zip(results, reference) if r == f])/float(len(results))
-
-def output(results, header_row):
-    with open('output.csv', 'w') as output_file:
-        writer = csv.writer(output_file)
-        writer.writerow(header_row)
-        writer.writerows(results)
+def save_data(path, data, **kwargs):
+    numpy.savetxt(path, data, **kwargs)
 
 if __name__ == '__main__':
-    train_dataset = load_data('data/train.tsv')
-    k_fold = cross_validation.KFold(n=len(train_dataset), n_folds=5, indices=True)
+    # the strange comments parameter is a hacky workaround for
+    # https://github.com/numpy/numpy/issues/5155
+    train_dataset = load_data('data/train.tsv', delimiter='\t', skiprows=1,
+                              usecols=(0,2,3), comments='kl4kk4k', dtype=object)
+    estimator = CustomEstimator()
+    k_fold = cross_validation.KFold(n=len(train_dataset), n_folds=5,
+                                    indices=True)
     a = 0.0
     for train_indices, test_indices in k_fold:
-        train_train = [train_dataset[i] for i in train_indices]
-        train_test = [train_dataset[i][:-1] for i in test_indices]
-        train_ref = [train_dataset[i][-1] for i in test_indices]
+        train_train_X = train_dataset[train_indices][:,1]
+        train_train_y = train_dataset[train_indices][:,-1].astype(numpy.int8)
+        train_test_X = train_dataset[test_indices][:,1]
+        train_test_y = train_dataset[test_indices][:,-1].astype(numpy.int8)
         
-        fit(train_train)
-        results = predict(train_test)
-        s = score(results, train_ref)
+        s = estimator.fit(train_train_X, train_train_y).score(train_test_X,
+                                                              train_test_y)
         a += s
-        print 'Score: {}'.format(score(results, train_ref))
-        # print 'Train: {}, Test: {}'.format(train_indices, test_indices)
-    print 'Average score: {}'.format(a/len(k_fold))
-    raise SystemExit(0)
-    raise SystemExit(0)
-    test_dataset = load_data('data/test.tsv')
-    results = fit(test_dataset)
-    output(
-        list(zip(
-            map(lambda x: x[0], test_dataset),
-            map(lambda x: int(round(x))+2, results)
-        )),
-        ('PhraseId', 'Sentiment')
-    )
+        print 'Score: {:.4f}'.format(s)
+    print 'Average score: {:.4f}'.format(a/len(k_fold))
+    test_dataset = load_data('data/test.tsv', delimiter='\t', skiprows=1,
+                             usecols=(0,2), comments=None, dtype=object)
+    results = estimator.fit(
+        train_dataset[:,1], train_dataset[:,-1].astype(numpy.int8)
+    ).predict(test_dataset[:,-1])
+    save_data('data/out.csv', numpy.column_stack((test_dataset[:,0], results)),
+              delimiter=',', header='PhraseId,Sentiment', fmt=('%s', '%u'),
+              comments='')
