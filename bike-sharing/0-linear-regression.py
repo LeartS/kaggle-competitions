@@ -48,14 +48,19 @@ if __name__ == '__main__':
     out_column = load_data('data/test.csv', usecols=(0,), dtype=str,
                            **common_input_options)
 
+    # Data preprocessing
+    X_train = train_dataset[:,:-1]
+    y_train = train_dataset[:,-1]
+    X_train = np.hstack((X_train, X_train[:,0,None]**2, X_train[:,0,None]**3))
+    X_test = test_dataset
+    X_test = np.hstack((X_test, X_test[:,0,None]**2, X_test[:,0,None]**3))
+
     # The interesting part
     estimator = linear_model.LinearRegression()
     if args.cv:
-        cv(estimator, train_dataset[:,:-1], train_dataset[:,-1])
+        cv(estimator, X_train, y_train)
     if args.out:
-        results = estimator.fit(
-            train_dataset[:,:-1], train_dataset[:,-1]
-        ).predict(test_dataset)
+        results = estimator.fit(X_train, y_train).predict(X_test)
         results = np.where(results > 0, results, 0.01).astype(np.int)
 
         # Output
