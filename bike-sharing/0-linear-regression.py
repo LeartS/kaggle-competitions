@@ -20,10 +20,9 @@ if __name__ == '__main__':
     train_dataset = load_data('data/train.csv', usecols=(0,1,2,3,4,5,6,7,8,11),
                               **common_input_options)
     estimator = linear_model.LinearRegression()
-    k_fold = cross_validation.KFold(n=len(train_dataset), n_folds=6,
+    k_fold = cross_validation.KFold(n=len(train_dataset), n_folds=10,
                                     indices=True)
     a = 0.0
-    am = 0.0
     for train_indices, test_indices in k_fold:
         train_train_X = train_dataset[train_indices][:,:-1]
         train_train_y = train_dataset[train_indices][:,-1]
@@ -33,15 +32,8 @@ if __name__ == '__main__':
         r = np.where(r > 0, r, 0.01)
         s = math.sqrt(metrics.mean_squared_error(np.log(train_test_y + 1), np.log(r + 1.0)))
         a += s
-        mr = r.copy()
-        mr[:] = np.mean(train_train_y)
-        ms = math.sqrt(metrics.mean_squared_error(np.log(train_test_y + 1), np.log(mr + 1.0)))
-        am += ms
-        # print 'Score: {:.4f}'.format(s)
-        # print 'Mean value score: {:.4f}'.format(ms)
-    print np.mean(train_dataset[:,-1])
+        print 'Score: {:.4f}'.format(s)
     print 'Average score: {:.4f}'.format(a/len(k_fold))
-    print 'Average mean score: {:.4f}'.format(am/len(k_fold))
     test_dataset = load_data('data/test.csv', usecols=(0,1,2,3,4,5,6,7,8),
                              **common_input_options)
     common_input_options['converters'] = {}
