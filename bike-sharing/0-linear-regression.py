@@ -15,6 +15,14 @@ def save_data(path, data, **kwargs):
 def hour_from_dt_string(dt_string):
     return datetime.strptime(dt_string, '%Y-%m-%d %H:%M:%S').hour
 
+def preprocessing(X, y):
+    is_seasons = np.empty((X.shape[0], 4))
+    for i in xrange(1, 5):
+        is_seasons[:,i-1] = X[:,1] == i
+    print is_seasons
+    X = np.hstack((X[:,[0,2,3,6,7,8]], X[:,0,None]**2, X[:,0,None]**3))
+    return X, y
+
 def cv(estimator, X, y):
     k_fold = cross_validation.KFold(n=len(train_dataset), n_folds=10,
                                     indices=True)
@@ -26,7 +34,11 @@ def cv(estimator, X, y):
                                                  np.log(r + 1.0)))
         a += s
         print 'Score: {:.4f}'.format(s)
+        print 'Weights: {}'.format(estimator.coef_)
     print 'Average score: {:.4f}'.format(a/len(k_fold))
+
+def loss_func(y_real, y_predicted):
+    return math.sqrt(metrics.mean_squared_error(np.log(y_real + 1), np.log(y_predicted + 1)))
 
 if __name__ == '__main__':
     # Command arguments
@@ -49,14 +61,11 @@ if __name__ == '__main__':
                            **common_input_options)
 
     # Data preprocessing
-    X_train = train_dataset[:,:-1]
-    y_train = train_dataset[:,-1]
-    X_train = np.hstack((X_train, X_train[:,0,None]**2, X_train[:,0,None]**3))
-    X_test = test_dataset
-    X_test = np.hstack((X_test, X_test[:,0,None]**2, X_test[:,0,None]**3))
+    X_train, y_train = preprocessing(train_dataset[:,:-1], train_dataset[:,-1])
+    X_test, y_test = preprocessing(test_dataset, None)
 
     # The interesting part
-    estimator = linear_model.LinearRegression()
+    estimator = linear_model.Ridge(copy_X=True, alpha=0.1, fit_intercept=True, normalize=True)
     if args.cv:
         cv(estimator, X_train, y_train)
     if args.out:
