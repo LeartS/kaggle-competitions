@@ -19,8 +19,8 @@ def preprocessing(X, y):
     is_seasons = np.empty((X.shape[0], 4))
     return X, y
 
-def cv(estimator, X, y):
-    k_fold = cross_validation.KFold(n=len(train_dataset), n_folds=10,
+def cv(estimator, X, y, n_folds=5):
+    k_fold = cross_validation.KFold(n=len(train_dataset), n_folds=n_folds,
                                     indices=True)
     a = 0.0
     for train_idx, test_idx in k_fold:
@@ -38,10 +38,14 @@ def loss_func(y_real, y_predicted):
 if __name__ == '__main__':
     # Command arguments
     parser = argparse.ArgumentParser(description='bike-sharing estimator')
-    parser.add_argument('--cv', dest='cv', action='store_const', const=True,
-                        default=False, help='Do cross validation')
-    parser.add_argument('--no-test', dest='out', action='store_const',
-                        const=False, default=True, help='No test dataset')
+    parser.add_argument('--no-cv', dest='cv', action='store_const', const=False,
+                        default=True, help='Skip cross validation')
+    parser.add_argument('--no-test', dest='test', action='store_const',
+                        const=False, default=True, help='Skip test dataset')
+    parser.add_argument('-k', dest='n_fold', type=int,
+                        default=5, help='Number of cv folds')
+    parser.add_argument('-d', '--max-depth', dest='depth', type=int,
+                        default=10, help='Max depth of decision tree')
     args = parser.parse_args()
 
     # Input
@@ -60,10 +64,10 @@ if __name__ == '__main__':
     X_test, y_test = preprocessing(test_dataset, None)
 
     # The interesting part
-    estimator = tree.DecisionTreeRegressor(max_depth=12)
+    estimator = tree.DecisionTreeRegressor(max_depth=args.depth, min_samples_split=42)
     if args.cv:
-        cv(estimator, X_train, y_train)
-    if args.out:
+        cv(estimator, X_train, y_train, args.n_fold)
+    if args.test:
         results = estimator.fit(X_train, y_train).predict(X_test)
         results = np.where(results > 0, results, 0.01).astype(np.int)
 
