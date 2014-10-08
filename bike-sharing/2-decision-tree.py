@@ -19,18 +19,20 @@ def preprocessing(X, y):
     is_seasons = np.empty((X.shape[0], 4))
     return X, y
 
-def cv(estimator, X, y, n_folds=5):
+def cv(estimator, X, y, n_folds=5, print_single=True):
     k_fold = cross_validation.KFold(n=len(train_dataset), n_folds=n_folds,
                                     indices=True)
-    a = 0.0
+    scores = []
     for train_idx, test_idx in k_fold:
         r = estimator.fit(X[train_idx], y[train_idx]).predict(X[test_idx])
         r = np.where(r > 0, r, 0).astype(np.int)
         s = math.sqrt(metrics.mean_squared_error(np.log(y[test_idx] + 1),
                                                  np.log(r + 1.0)))
-        a += s
-        print 'Score: {:.4f}'.format(s)
-    print 'Average score: {:.4f}'.format(a/len(k_fold))
+        scores.append(s)
+        if print_single:
+            print 'Score: {:.3f}'.format(s)
+    print 'Average score: {:.3f} - std: {:.4f}'.format(np.mean(scores),
+                                                       np.std(scores))
 
 def loss_func(y_real, y_predicted):
     return math.sqrt(metrics.mean_squared_error(np.log(y_real + 1), np.log(y_predicted + 1)))
@@ -38,12 +40,14 @@ def loss_func(y_real, y_predicted):
 if __name__ == '__main__':
     # Command arguments
     parser = argparse.ArgumentParser(description='bike-sharing estimator')
-    parser.add_argument('--no-cv', dest='cv', action='store_const', const=False,
+    parser.add_argument('--no-cv', dest='cv', action='store_false',
                         default=True, help='Skip cross validation')
-    parser.add_argument('--no-test', dest='test', action='store_const',
-                        const=False, default=True, help='Skip test dataset')
+    parser.add_argument('--no-test', dest='test', action='store_false',
+                        default=True, help='Skip test dataset')
     parser.add_argument('-k', dest='n_fold', type=int,
                         default=5, help='Number of cv folds')
+    parser.add_argument('--no-single', dest='single', action='store_false',
+                        default=True, help='Print only average cv score')
     parser.add_argument('-d', '--max-depth', dest='depth', type=int,
                         default=10, help='Max depth of decision tree')
     args = parser.parse_args()
@@ -64,9 +68,9 @@ if __name__ == '__main__':
     X_test, y_test = preprocessing(test_dataset, None)
 
     # The interesting part
-    estimator = tree.DecisionTreeRegressor(max_depth=args.depth, min_samples_split=42)
+    estimator = tree.DecisionTreeRegressor(max_depth=args.depth)
     if args.cv:
-        cv(estimator, X_train, y_train, args.n_fold)
+        cv(estimator, X_train, y_train, args.n_fold, args.single)
     if args.test:
         results = estimator.fit(X_train, y_train).predict(X_test)
         results = np.where(results > 0, results, 0.01).astype(np.int)
