@@ -1,22 +1,25 @@
 import math
 import argparse
 from datetime import datetime
+
 import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
 from sklearn import cross_validation
 from sklearn import tree
 from sklearn import metrics
 
-def load_data(path, **kwargs):
-    return np.loadtxt(path, **kwargs)
-
-def save_data(path, data, **kwargs):
-    np.savetxt(path, data, **kwargs)
-
-def hour_from_dt_string(dt_string):
-    return datetime.strptime(dt_string, '%Y-%m-%d %H:%M:%S').hour
+plt.style.use('ggplot')
 
 def preprocessing(X, y):
-    is_seasons = np.empty((X.shape[0], 4))
+    X['weekday'] = X.index.weekday
+    X['hour'] = X.index.hour
+    X['year'] = X.index.year
+    # Convert pandas dataframe to numpy arrays. At this point all columns
+    # should have the same dtype
+    X = X.values
+    if y is not None:
+        y = y.values
     return X, y
 
 def cv(estimator, X, y, n_folds=5, print_single=True):
@@ -53,18 +56,14 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     # Input
-    common_input_options = {'delimiter': ',', 'skiprows': 1,
-                            'converters': {0: hour_from_dt_string} }
-    train_dataset = load_data('data/train.csv', usecols=(0,1,2,3,4,5,6,7,8,11),
-                              **common_input_options)
-    test_dataset = load_data('data/test.csv', usecols=(0,1,2,3,4,5,6,7,8),
-                             **common_input_options)
-    common_input_options['converters'] = {}
-    out_column = load_data('data/test.csv', usecols=(0,), dtype=str,
-                           **common_input_options)
+    common_input_options = {'delimiter': ',', 'index_col': 0, 'parse_dates': True}
+    train_dataset = pd.read_csv('data/train.csv', **common_input_options)
+    test_dataset = pd.read_csv('data/test.csv', usecols=(0,1,2,3,4,5,6,7,8),
+                               **common_input_options)
 
     # Data preprocessing
-    X_train, y_train = preprocessing(train_dataset[:,:-1], train_dataset[:,-1])
+    X_train, y_train = preprocessing(train_dataset.iloc[:,:-3],
+                                     train_dataset.iloc[:,-1])
     X_test, y_test = preprocessing(test_dataset, None)
 
     # The interesting part
@@ -73,9 +72,9 @@ if __name__ == '__main__':
         cv(estimator, X_train, y_train, args.n_fold, args.single)
     if args.test:
         results = estimator.fit(X_train, y_train).predict(X_test)
-        results = np.where(results > 0, results, 0.01).astype(np.int)
+        results = np.where(results > 0, results, 0).astype(np.int)
 
         # Output
-        save_data('data/out.csv', np.column_stack((out_column.T, results.T)),
-                  delimiter=',', header='datetime,count', fmt=('%s', '%s'),
-                  comments='')
+        output_dataframe = pd.DataFrame({'datetime': test_dataset.index})
+        output_dataframe['count'] = results
+        output_dataframe.to_csv('data/out.csv', index=False)
