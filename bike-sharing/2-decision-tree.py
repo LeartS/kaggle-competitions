@@ -9,7 +9,7 @@ from sklearn import cross_validation
 from sklearn import tree
 from sklearn import metrics
 
-plt.style.use('ggplot')
+# plt.style.use('ggplot')
 
 def preprocessing(X, y):
     X['weekday'] = X.index.weekday
@@ -22,18 +22,19 @@ def preprocessing(X, y):
         y = y.values
     return X, y
 
+def scoring(y_real, y_predicted):
+    y_real = y_real.astype(np.int)
+    y_predicted = np.where(y_predicted > 0, y_predicted, 0).astype(np.int)
+    return math.sqrt(
+        metrics.mean_squared_error(np.log(y_predicted + 1), np.log(y_real + 1))
+    )
+
 def cv(estimator, X, y, n_folds=5, print_single=True):
-    k_fold = cross_validation.KFold(n=len(train_dataset), n_folds=n_folds,
-                                    indices=True)
-    scores = []
-    for train_idx, test_idx in k_fold:
-        r = estimator.fit(X[train_idx], y[train_idx]).predict(X[test_idx])
-        r = np.where(r > 0, r, 0).astype(np.int)
-        s = math.sqrt(metrics.mean_squared_error(np.log(y[test_idx] + 1),
-                                                 np.log(r + 1.0)))
-        scores.append(s)
-        if print_single:
-            print 'Score: {:.3f}'.format(s)
+    k_fold = cross_validation.KFold(n=len(X), n_folds=n_folds, indices=True)
+    rshuffle = cross_validation.ShuffleSplit(n=len(X), n_iter=n_folds)
+    scores = cross_validation.cross_val_score(estimator, X, y, cv=rshuffle,
+                                              score_func=scoring)
+    print scores
     print 'Average score: {:.3f} - std: {:.4f}'.format(np.mean(scores),
                                                        np.std(scores))
 
