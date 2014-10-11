@@ -15,31 +15,25 @@ def preprocessing(X, y):
     X['weekday'] = X.index.weekday
     X['hour'] = X.index.hour
     X['year'] = X.index.year
-    # Convert pandas dataframe to numpy arrays. At this point all columns
-    # should have the same dtype
-    X = X.values
-    if y is not None:
-        y = y.values
     return X, y
 
 def scoring(y_real, y_predicted):
-    y_real = y_real.astype(np.int)
-    y_predicted = np.where(y_predicted > 0, y_predicted, 0).astype(np.int)
+    y_real = y_real.round().astype(np.int)
+    y_predicted = np.where(y_predicted > 0, y_predicted, 0).round().astype(np.int)
     return math.sqrt(
         metrics.mean_squared_error(np.log(y_predicted + 1), np.log(y_real + 1))
     )
 
-def cv(estimator, X, y, n_folds=5, print_single=True):
-    k_fold = cross_validation.KFold(n=len(X), n_folds=n_folds, indices=True)
-    rshuffle = cross_validation.ShuffleSplit(n=len(X), n_iter=n_folds)
-    scores = cross_validation.cross_val_score(estimator, X, y, cv=rshuffle,
+def cv(estimator, X, y, day_split_first=8, day_split_last=13):
+    day_split = (a for a in
+                 [np.where(X.index.day < i) + np.where(X.index.day >= i)
+                  for i in xrange(day_split_first, day_split_last+1)])
+    scores = cross_validation.cross_val_score(estimator, X, y, cv=day_split,
                                               score_func=scoring)
-    print scores
-    print 'Average score: {:.3f} - std: {:.4f}'.format(np.mean(scores),
-                                                       np.std(scores))
-
-def loss_func(y_real, y_predicted):
-    return math.sqrt(metrics.mean_squared_error(np.log(y_real + 1), np.log(y_predicted + 1)))
+    print scores.round(3)
+    print 'Avg: {1:.3f} | std: {2:.3f} | min: {3:.3f} | max: {6:.3f}'.format(
+        *pd.Series(scores).describe()[:]
+    )
 
 if __name__ == '__main__':
     # Command arguments
@@ -48,10 +42,10 @@ if __name__ == '__main__':
                         default=True, help='Skip cross validation')
     parser.add_argument('--no-test', dest='test', action='store_false',
                         default=True, help='Skip test dataset')
-    parser.add_argument('-k', dest='n_fold', type=int,
-                        default=5, help='Number of cv folds')
-    parser.add_argument('--no-single', dest='single', action='store_false',
-                        default=True, help='Print only average cv score')
+    parser.add_argument('-f', dest='first', type=int,
+                        default=8, help='First starting day of test split')
+    parser.add_argument('-l', dest='last', type=int,
+                        default=13, help='Last starting day of test split')
     parser.add_argument('-d', '--max-depth', dest='depth', type=int,
                         default=10, help='Max depth of decision tree')
     args = parser.parse_args()
@@ -70,10 +64,10 @@ if __name__ == '__main__':
     # The interesting part
     estimator = tree.DecisionTreeRegressor(max_depth=args.depth)
     if args.cv:
-        cv(estimator, X_train, y_train, args.n_fold, args.single)
+        cv(estimator, X_train, y_train, args.first, args.last)
     if args.test:
         results = estimator.fit(X_train, y_train).predict(X_test)
-        results = np.where(results > 0, results, 0).astype(np.int)
+        results = np.where(results > 0, results, 0).round().astype(np.int)
 
         # Output
         output_dataframe = pd.DataFrame({'datetime': test_dataset.index})
