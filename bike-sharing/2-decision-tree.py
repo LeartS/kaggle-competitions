@@ -15,13 +15,14 @@ def preprocessing(X, y):
     X['weekday'] = X.index.weekday
     X['hour'] = X.index.hour
     X['year'] = X.index.year
+    # X['cumul'] = (X.index.year - 2011) * 12 + X.index.month
     return X, y
 
-def scoring(y_real, y_predicted):
-    y_real = y_real.round().astype(np.int)
-    y_predicted = np.where(y_predicted > 0, y_predicted, 0).round().astype(np.int)
+def scoring(y_real, y_pred):
+    y_real = y_real.sum(axis=1).round().astype(np.int)
+    y_pred = np.where(y_pred > 0, y_pred, 1).sum(axis=1).round().astype(np.int)
     return math.sqrt(
-        metrics.mean_squared_error(np.log(y_predicted + 1), np.log(y_real + 1))
+        metrics.mean_squared_error(np.log(y_pred + 1), np.log(y_real + 1))
     )
 
 def cv(estimator, X, y, day_split_first=8, day_split_last=13):
@@ -31,7 +32,7 @@ def cv(estimator, X, y, day_split_first=8, day_split_last=13):
     scores = cross_validation.cross_val_score(estimator, X, y, cv=day_split,
                                               score_func=scoring)
     print scores.round(3)
-    print 'Avg: {1:.3f} | std: {2:.3f} | min: {3:.3f} | max: {6:.3f}'.format(
+    print 'Avg: {1:.3f} | std: {2:.3f} | min: {3:.3f} | max: {7:.3f}'.format(
         *pd.Series(scores).describe()[:]
     )
 
@@ -58,7 +59,7 @@ if __name__ == '__main__':
 
     # Data preprocessing
     X_train, y_train = preprocessing(train_dataset.iloc[:,:-3],
-                                     train_dataset.iloc[:,-1])
+                                     train_dataset.iloc[:,-3:-1])
     X_test, y_test = preprocessing(test_dataset, None)
 
     # The interesting part
@@ -67,7 +68,7 @@ if __name__ == '__main__':
         cv(estimator, X_train, y_train, args.first, args.last)
     if args.test:
         results = estimator.fit(X_train, y_train).predict(X_test)
-        results = np.where(results > 0, results, 0).round().astype(np.int)
+        results = np.where(results > 0, results, 0).sum(axis=1).round().astype(np.int)
 
         # Output
         output_dataframe = pd.DataFrame({'datetime': test_dataset.index})
